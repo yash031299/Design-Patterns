@@ -1,80 +1,195 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Text;
 
-/// <summary>
-/// Builder for constructing an HttpRequestMessage object in a clean and fluent way.
-/// </summary>
-public class HttpRequestBuilder
+/**
+ * Represents an HTTP request with URL, method, headers, query parameters, and body.
+ * Uses the Builder pattern to allow flexible request creation.
+ */
+class HttpRequest
 {
-    private HttpMethod method;
-    private Uri uri;
-    private HttpContent content;
-    private readonly Dictionary<string, string> headers = new();
+    // Member variables representing parts of an HTTP request
+    private readonly string url;                          // Request URL
+    private readonly string method;                       // HTTP method (GET, POST, etc.)
+    private readonly Dictionary<string, string> headers;  // HTTP headers
+    private readonly Dictionary<string, string> queryParams; // URL query parameters
+    private readonly string body;                         // Request body (for POST, PUT, etc.)
 
-    /// <summary>
-    /// Sets the HTTP method (GET, POST, etc.)
-    /// </summary>
-    public HttpRequestBuilder SetMethod(HttpMethod method)
+    /**
+     * Private constructor. Instances can only be created via the Builder.
+     */
+    private HttpRequest(Builder builder)
     {
-        this.method = method;
-        return this;
+        this.url = builder.Url;
+        this.method = builder.Method;
+        this.headers = builder.Headers;
+        this.queryParams = builder.QueryParams;
+        this.body = builder.Body;
     }
 
-    /// <summary>
-    /// Sets the URI for the request.
-    /// </summary>
-    public HttpRequestBuilder SetUri(string url)
+    // Public getter methods to access fields
+
+    public string Url => this.url;
+
+    public string Method => this.method;
+
+    public Dictionary<string, string> Headers => this.headers;
+
+    public Dictionary<string, string> QueryParams => this.queryParams;
+
+    public string Body => this.body;
+
+    /**
+     * Builder class for constructing HttpRequest objects in a flexible and readable way.
+     */
+    public class Builder
     {
-        this.uri = new Uri(url);
-        return this;
+        public string Url { get; }
+        public string Method { get; }
+
+        public Dictionary<string, string> Headers { get; } = new Dictionary<string, string>();
+        public Dictionary<string, string> QueryParams { get; } = new Dictionary<string, string>();
+        public string Body { get; private set; } = null;
+
+        /**
+         * Constructor for Builder, requiring at minimum a URL and HTTP method.
+         *
+         * @param url    the request URL
+         * @param method the HTTP method (e.g., GET, POST)
+         */
+        public Builder(string url, string method)
+        {
+            if (url == null)
+            {
+                throw new ArgumentException("URL is Required");
+            }
+            else if (method == null)
+            {
+                throw new ArgumentException("HTTP Method is Required");
+            }
+
+            this.Url = url;
+            this.Method = method;
+        }
+
+        /**
+         * Adds an HTTP header to the request.
+         *
+         * @param key   Header name
+         * @param value Header value
+         * @return Builder (for method chaining)
+         */
+        public Builder AddHeader(string key, string value)
+        {
+            this.Headers[key] = value;
+            return this;
+        }
+
+        /**
+         * Adds a query parameter to the request URL.
+         *
+         * @param key   Parameter name
+         * @param value Parameter value
+         * @return Builder (for method chaining)
+         */
+        public Builder AddQueryParam(string key, string value)
+        {
+            this.QueryParams[key] = value;
+            return this;
+        }
+
+        /**
+         * Adds a body to the request (usually used in POST/PUT requests).
+         *
+         * @param body The request body content
+         * @return Builder (for method chaining)
+         */
+        public Builder SetBody(string body)
+        {
+            this.Body = body;
+            return this;
+        }
+
+        /**
+         * Builds and returns an HttpRequest instance.
+         *
+         * @return HttpRequest object
+         */
+        public HttpRequest Build()
+        {
+            return new HttpRequest(this);
+        }
     }
 
-    /// <summary>
-    /// Sets the content (body) of the request.
-    /// </summary>
-    public HttpRequestBuilder SetContent(string body, string mediaType = "application/json")
+    /**
+     * Returns a human-readable string representation of the HttpRequest.
+     * Includes method, URL, query parameters, headers, and body.
+     */
+    public override string ToString()
     {
-        this.content = new StringContent(body, Encoding.UTF8, mediaType);
-        return this;
-    }
+        StringBuilder sb = new StringBuilder();
+        sb.Append(Method).Append(" ").Append(Url);
 
-    /// <summary>
-    /// Adds a header to the request.
-    /// </summary>
-    public HttpRequestBuilder AddHeader(string key, string value)
-    {
-        headers[key] = value;
-        return this;
-    }
+        // Append query parameters, if any
+        if (QueryParams.Count > 0)
+        {
+            sb.Append("?");
+            List<string> paramsList = new List<string>();
+            foreach (var param in QueryParams)
+            {
+                paramsList.Add($"{param.Key}={param.Value}");
+            }
+            sb.Append(string.Join("&", paramsList));
+        }
 
-    /// <summary>
-    /// Builds the HttpRequestMessage instance.
-    /// </summary>
-    public HttpRequestMessage Build()
-    {
-        var request = new HttpRequestMessage(method, uri);
-        if (content != null) request.Content = content;
-        foreach (var header in headers)
-            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        sb.AppendLine();
 
-        return request;
+        // Append headers, if any
+        if (Headers.Count > 0)
+        {
+            sb.AppendLine("Headers:");
+            foreach (var header in Headers)
+            {
+                sb.AppendLine($"  {header.Key}: {header.Value}");
+            }
+        }
+
+        // Append body, if present
+        if (Body != null)
+        {
+            sb.AppendLine("Body:");
+            sb.AppendLine($"  {Body}");
+        }
+
+        return sb.ToString();
     }
 }
 
-// Usage
-public class Program
+
+/**
+ * Demonstrates usage of the HttpRequest class by building example requests.
+ */
+public class BuilderPattern
 {
-    public static void Main()
+    public static void Main(string[] args)
     {
-        var request = new HttpRequestBuilder()
-            .SetMethod(HttpMethod.Post)
-            .SetUri("https://api.example.com/users")
-            .SetContent("{\"name\":\"Alice\"}")
-            .AddHeader("Authorization", "Bearer token123")
+        // Example 1: Simple GET request with a query parameter
+        HttpRequest simpleGet = new HttpRequest.Builder("https://api.example.com/users", "GET")
+            .AddQueryParam("id", "123")
             .Build();
 
-        Console.WriteLine(request);
+        Console.WriteLine("Simple GET Request:");
+        Console.WriteLine(simpleGet);
+
+        // Example 2: Complex POST request with headers, query parameters, and a JSON body
+        HttpRequest complexPost = new HttpRequest.Builder("https://api.example.com/users", "POST")
+            .AddHeader("Content-Type", "application/json")
+            .AddHeader("Authorization", "Bearer abc123")
+            .AddQueryParam("version", "1.0")
+            .SetBody("{\"name\": \"Alice\", \"email\": \"alice@example.com\"}")
+            .Build();
+
+        Console.WriteLine("\nComplex POST Request:");
+        Console.WriteLine(complexPost);
     }
 }
